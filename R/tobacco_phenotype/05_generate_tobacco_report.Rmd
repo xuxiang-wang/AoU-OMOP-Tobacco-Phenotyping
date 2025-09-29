@@ -1,0 +1,166 @@
+---
+title: "Tobacco Validation Report"
+author: "Xuxiang Wang"
+date: "2025-09-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# This chunk runs automatically but is hidden in the final report.
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(gtsummary)
+
+# Load all the pre-computed results from the analysis script
+load("../validation_results.RData")
+```
+
+### Part 1: Smoking Status Agreement and Performance
+
+**Descriptive Statistics by Survey Smoking Status (Table 1)**
+
+```{r}
+descriptive_status
+```
+
+**Cohen's Kappa for Smoking Status**
+
+```{r}
+kappa_table_status
+```
+
+**Performance Metrics for Smoking Status (Sensitivity, Specificity, etc.)**
+
+```{r}
+performance_table_status
+```
+
+### Part 2: Smoking Intensity Agreement and Performance
+
+**Descriptive Statistics by Survey Smoking Intensity**
+
+```{r}
+descriptive_intensity
+```
+
+**Weighted Kappa for Ordinal Smoking Intensity**
+
+```{r}
+kappa_intensity
+```
+
+**Full Confusion Matrix for Smoking Intensity**
+
+```{r}
+conf_matrix_intensity_full
+```
+
+**Per-Class, Macro, and Micro Performance for Smoking Intensity**
+
+```{r}
+performance_intensity_all
+```
+
+### Part 3: Cigarettes per Day (Continuous) Agreement
+
+**ICC and Agreement Rate for Cigarettes per Day**
+
+```{r}
+icc_tbl_cigs
+```
+
+**Error Metrics (Bias, MAE, RMSE, Correlation) for Cigarettes per Day**
+
+```{r}
+err_tbl_cigs
+```
+
+**Bland-Altman Plot for Cigarettes per Day**
+
+```{r}
+ba_plot_cigs
+```
+
+### Part 4: Smoking Years (Continuous) Agreement
+
+**ICC and Agreement Rate for Smoking Years**
+
+```{r}
+icc_tbl_years
+```
+
+**Error Metrics (Bias, MAE, RMSE, Correlation) for Smoking Years**
+
+```{r}
+err_tbl_years
+```
+
+**Bland-Altman Plot for Smoking Years**
+
+```{r}
+ba_plot_years
+```
+
+### Supplemental Tables: EHR Data Summaries
+
+```{r supplemental_tables, echo=FALSE}
+# This code is from the end of the original Full_Validation_Pipeline script
+varlist_long <- c(
+  "person_id", "concept_id", "current_smoker","former_smoker","non_smoker",
+  "is_current_flag", "is_former_flag", "is_non_flag", "current_12_month","former_12_month",
+  "cessation_counseling","medication_use","cessation_attempt",
+  "e_cigarette_user","cigar_user","hookah_user","smokeless_user","other_type_user","cigaretee_user",
+  "packs_per_day","cigarettes_per_day","intensity_daily","duration_years"
+)
+
+EHR_summary_list_long <- list()
+for (v in varlist_long) {
+  if (v %in% c("intensity_daily")) {
+    df_sub <- long_tobacco_EHR_data %>% filter(!is.na(.data[[v]]))
+  } else {
+    df_sub <- long_tobacco_EHR_data %>% filter(!is.na(.data[[v]]) & .data[[v]] != 0)
+  }
+  EHR_summary_list_long[[v]] <- df_sub %>%
+    summarise(variable = v, n_records = n(), n_persons = n_distinct(person_id))
+}
+sup_table_1 <- bind_rows(EHR_summary_list_long)
+
+varlist_wide <- c(
+  "ever_current_flag","ever_former_flag","ever_non_flag",
+  "ever_cessation_counseling","ever_medication_use","ever_cessation_attempt",
+  "latest_is_current_flag","latest_is_former_flag","latest_is_non_flag",
+  "latest_current_12_month","latest_former_12_month",
+  "latest_cessation_counseling","latest_medication_use","latest_cessation_attempt"
+)
+
+EHR_summary_list_wide <- list()
+for (v in varlist_wide) {
+    df_sub <- wide_tobacco_EHR_data %>% filter(!is.na(.data[[v]]) & .data[[v]] != 0)
+    EHR_summary_list_wide[[v]] <- df_sub %>%
+    summarise(variable = v, n_persons = n_distinct(person_id))
+}
+sup_table_2 <- bind_rows(EHR_summary_list_wide)
+```
+
+**Supplemental Table 1 (Summary of Long EHR Data)**
+
+```{r}
+sup_table_1
+```
+
+**Supplemental Table 2 (Summary of Wide EHR Data)**
+
+```{r}
+sup_table_2
+```
+
+```{r, include=FALSE}
+rm(descriptive_status, kappa_table_status, performance_table_status,
+   descriptive_intensity, kappa_intensity, performance_intensity_all,
+   icc_tbl_cigs, err_tbl_cigs, ba_plot_cigs,
+   icc_tbl_years, err_tbl_years, ba_plot_years,
+   sup_table_1, sup_table_2,
+   EHR_summary_list_long, EHR_summary_list_wide, df_sub
+)
+```
+
