@@ -126,8 +126,8 @@ for (v in varlist_long) {
 sup_table_1 <- bind_rows(EHR_summary_list_long)
 
 varlist_wide <- c(
-  "ever_current_flag","ever_former_flag","ever_non_flag",
-  "ever_cessation_counseling","ever_medication_use","ever_cessation_attempt",
+  "ever_smoker","non_flag",
+  "cessation_counseling","medication_use","cessation_attempt",
   "latest_is_current_flag","latest_is_former_flag","latest_is_non_flag",
   "latest_current_12_month","latest_former_12_month",
   "latest_cessation_counseling","latest_medication_use","latest_cessation_attempt"
