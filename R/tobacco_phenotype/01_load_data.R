@@ -513,12 +513,12 @@ wide_tobacco_EHR_sql <- paste(tobacco_EHR_sql, ",
 EverFlags AS (
   SELECT
     person_id,
-    MAX(is_current_flag)      AS ever_current_flag,
-    MAX(is_former_flag)       AS ever_former_flag,
-    MAX(is_non_flag)          AS ever_non_flag,
-    MAX(cessation_counseling) AS ever_cessation_counseling,
-    MAX(medication_use)       AS ever_medication_use,
-    MAX(cessation_attempt)    AS ever_cessation_attempt
+    MAX(is_current_flag)      AS current_flag,
+    MAX(is_former_flag)       AS former_flag,
+    MAX(is_non_flag)          AS non_flag,
+    MAX(cessation_counseling) AS cessation_counseling,
+    MAX(medication_use)       AS medication_use,
+    MAX(cessation_attempt)    AS cessation_attempt
   FROM AllEventsWithFlags
   GROUP BY person_id
 ),
@@ -536,13 +536,11 @@ LatestEvent AS (
 SELECT
   e.person_id,
 
-  -- Ever flags
-  e.ever_current_flag,
-  e.ever_former_flag,
-  e.ever_non_flag,
-  e.ever_cessation_counseling,
-  e.ever_medication_use,
-  e.ever_cessation_attempt,
+  CASE WHEN e.current_flag = 1 OR e.former_flag = 1 THEN 1 ELSE 0 END AS ever_smoker,
+  e.non_flag,
+  e.cessation_counseling,
+  e.medication_use,
+  e.cessation_attempt,
 
   -- Most recent event
   l.event_date           AS latest_event_date,
