@@ -1,7 +1,7 @@
 ---
 title: "Tobacco Validation Report"
-author: "Xuxiang Wang"
-date: "2025-09-26"
+author: "Xuxiang Wang", "A. Jerrod Anzalone"
+date: "2025-11-27"
 output: html_document
 ---
 
@@ -10,7 +10,7 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(tidyverse)
 library(gtsummary)
-
+library(ggplot2)
 # Load all the pre-computed results from the analysis script
 load("../validation_results.RData")
 ```
@@ -22,6 +22,19 @@ load("../validation_results.RData")
 ```{r}
 descriptive_status
 ```
+
+**Number of participants with selected tobacco-related indicators in wide-format EHR data (Figure 3)**
+
+```{r}
+plot_participants
+```
+
+**Number of EHR records with selected tobacco-related indicators in long-format EHR data (Figure 4)**
+
+```{r}
+plot_records
+```
+
 
 **Cohen's Kappa for Smoking Status**
 
@@ -163,4 +176,3 @@ rm(descriptive_status, kappa_table_status, performance_table_status,
    EHR_summary_list_long, EHR_summary_list_wide, df_sub
 )
 ```
-

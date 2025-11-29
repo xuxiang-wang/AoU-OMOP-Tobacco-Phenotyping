@@ -13,7 +13,7 @@
 
 # -- 1. Read in local concept sets for cessation --
 # ------------------------------------------------------------------------------
-nicotine_cessation_concepts_sets <- read_csv("Concepts/tobacco/Nicotine_for_Cessation.csv")
+nicotine_cessation_concepts_sets <- read_csv("Concept Sets/Nicotine_for_Cessation.csv")
 cess_ids <- paste(nicotine_cessation_concepts_sets$Id, collapse = ", ")
 
 

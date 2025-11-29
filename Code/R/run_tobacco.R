@@ -10,21 +10,11 @@
 # final output generation.
 # ==============================================================================
 
-# Step 0: Install these packages before running
-# install.packages("tidyverse")  # Restart Rstudio needed when install this package
-# install.packages("gtsummary")  # Restart Rstudio needed when install this package
-# install.packages("rmarkdown")  # Restart Rstudio needed when install this package
-# install.packages("broom")
-# install.packages("bigrquery")
-# install.packages("dplyr")
-# install.packages("lubridate")
-# install.packages("stringr")
-# install.packages("data.table")
-# install.packages("purrr")
-# install.packages("irr")
-# install.packages("ggplot2")
-# install.packages("ggsci")
-# install.packages("scales")
+# Step 0: Install Install once if needed before running
+# Restart Rstudio maybe needed before install these package
+# install.packages(c("tidyverse","gtsummary","rmarkdown","broom","bigrquery",
+#                    "dplyr","lubridate","data.table","purrr","irr","ggplot2",
+#                    "ggsci","scales"))
 
 
 # Step 1: Setup environment, load all libraries and helper functions

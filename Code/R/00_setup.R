@@ -2,7 +2,7 @@
 # 00_setup.R
 #
 # Author: Xuxiang Wang, A. Jerrod Anzalone
-# Date: 2025-09-26
+# Date: 2025-11-27
 #
 # Description:
 # This script loads all required libraries and defines global helper functions
@@ -28,7 +28,6 @@ library(broom)
 library(ggsci)
 library(scales)
 library(rmarkdown)
-
 
 # -- Global Helper Functions --
 
@@ -82,3 +81,31 @@ calculate_metrics <- function(confusion_matrix, measure_name) {
     NPV = round(npv, 3)
   )
 }
+
+# JAMA color palette
+jama_cols <- ggsci::pal_jama("default")(7)
+
+# JAMA-style theme applied to all ggplot objects
+theme_jama <- function(base_size = 11, base_family = "sans") {
+  theme_bw(base_size = base_size, base_family = base_family) +
+    theme(
+      panel.grid.major = element_line(color = "grey90", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      panel.border     = element_blank(),
+      axis.line        = element_line(color = "black", linewidth = 0.4),
+      axis.ticks       = element_line(color = "black", linewidth = 0.4),
+      axis.title       = element_text(size = base_size),
+      axis.text        = element_text(size = base_size - 1),
+      plot.title       = element_text(face = "bold", size = base_size + 1, hjust = 0),
+      plot.subtitle    = element_text(size = base_size, hjust = 0),
+      legend.position  = "bottom",
+      legend.title     = element_blank(),
+      legend.key       = element_blank(),
+      strip.background = element_rect(fill = "grey95", color = NA),
+      strip.text       = element_text(face = "bold"),
+      plot.margin      = margin(t = 5.5, r = 5.5, b = 5.5, l = 5.5)
+    )
+}
+
+theme_set(theme_jama())
+
