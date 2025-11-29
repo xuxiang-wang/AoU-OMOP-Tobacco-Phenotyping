@@ -1,7 +1,5 @@
 # All of Us (AoU) OMOP Tobacco Phenotyping
 
-This repository contains the R code for a reproducible phenotyping pipeline designed to identify tobacco use status from the [All of Us Research Program's Curated Data Repository (CDR) v8](https://support.researchallofus.org/hc/en-us/articles/30294451486356-Curated-Data-Repository-CDR-version-8-Release-Notes).
-
 ## Authors
 <a href="https://orcid.org/0009-0006-2953-0576">Xuxiang Wang <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /></a>, <a href="https://orcid.org/0000-0002-1947-1393">Megan L. Rolfzen <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /></a>, <a href="https://orcid.org/0000-0003-2990-9042">Kristina Bailey <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /></a>, <a href="https://orcid.org/0000-0002-5118-591X">Corrine K. Hanson <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /></a>, <a href="https://orcid.org/0000-0002-3732-2789">Ran Dai <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /></a>, <a href="https://orcid.org/0000-0002-3212-7845">A. Jerrod Anzalone <img alt="ORCID logo" src="https://info.orcid.org/wp-content/uploads/2019/11/orcid_16x16.png" width="16" height="16" /></a>
 
@@ -16,7 +14,7 @@ This repository contains the R code for a reproducible phenotyping pipeline desi
 
 This repository is broken down into two sections: 
 
-[Concept Sets](https://github.com/xuxiang-wang/AoU-OMOP-Tobacco-Phenotyping/tree/main/Concept-Sets)
+[Concept Sets](https://github.com/xuxiang-wang/AoU-OMOP-Tobacco-Phenotyping/tree/main/Concept%20Sets)
 
 [Code](https://github.com/xuxiang-wang/AoU-OMOP-Tobacco-Phenotyping/tree/main/Code)
 
