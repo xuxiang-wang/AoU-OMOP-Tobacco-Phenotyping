@@ -2,7 +2,7 @@
 # 02_process_and_combine.R
 #
 # Author: Xuxiang Wang, A. Jerrod Anzalone
-# Date: 2025-09-26
+# Date: 2025-11-29
 #
 # Description:
 # This script processes the raw survey data (Basics and Lifestyle), combines it
@@ -317,7 +317,8 @@ lifestyle_data <- lifestyle_data %>%
 combined_df <- basics_data %>%
   full_join(lifestyle_data, by = "person_id") %>%
   full_join(EHR_linked_data, by = "person_id") %>%
-  mutate(age = floor(interval(start = date_of_birth, end = survey_datetime) / years(1)),
+  mutate(smoking_status = replace_na(smoking_status, "Unknown"), 
+         age = floor(interval(start = date_of_birth, end = survey_datetime) / years(1)),
          # Age Group
          age_group = case_when(
            age < 18 ~ "<18",
@@ -394,7 +395,6 @@ combined_df <- combined_df %>%
   filter(sex_at_birth %in% c("Female", "Male")) %>%
   filter(has_visit_data == 1) %>%
   filter(has_tobacco_related_data == 1)
-
 
 # -- 4. Clean up intermediate objects from memory --
 # ------------------------------------------------------------------------------

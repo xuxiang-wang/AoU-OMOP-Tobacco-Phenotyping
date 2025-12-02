@@ -23,6 +23,12 @@ load("../validation_results.RData")
 descriptive_status
 ```
 
+**Agreement between EHR-derived phenotype and self-reported survey data (Table 2)**
+
+```{r}
+table2_agreement
+```
+
 **Number of participants with selected tobacco-related indicators in wide-format EHR data (Figure 3)**
 
 ```{r}

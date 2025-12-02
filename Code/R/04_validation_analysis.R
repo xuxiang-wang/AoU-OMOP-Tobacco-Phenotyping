@@ -86,7 +86,7 @@ analytic_status_data <- compared_smoking_status_df %>%
 selected_columns_status <- c(
   "age","age_group","race_and_ethnicity","education_level","marital_status",
   "health_insurance","employment_status","annual_household_income","current_home_own",
-  "current_smoker_agreement","current_former_smoker_agreement","smoking_status"
+  "smoking_status"
 )
 
 descriptive_status <- analytic_status_data %>%
@@ -94,6 +94,45 @@ descriptive_status <- analytic_status_data %>%
   tbl_summary(by = smoking_status) %>%
   add_overall() %>%
   add_p()
+
+analytic_status_data <- analytic_status_data %>%
+  mutate(
+    current_smoker_agreement = factor(
+      current_smoker_agreement,
+      levels = c("Both Yes", "Both No", "Survey-Only", "EHR-Only")
+    ),
+    current_former_smoker_agreement = factor(
+      current_former_smoker_agreement,
+      levels = c("Both Yes", "Both No", "Survey-Only", "EHR-Only")
+    )
+  )
+
+make_agreement_tbl <- function(data, variable) {
+  data %>%
+    select(all_of(variable)) %>%
+    tbl_summary(
+      type = all_categorical() ~ "categorical",
+      statistic = all_categorical() ~ "{n} ({p}%)",
+      label = list(variable ~ "")
+    )
+}
+
+tbl_current <- make_agreement_tbl(
+  analytic_status_data, 
+  "current_smoker_agreement"
+)
+
+tbl_ever <- make_agreement_tbl(
+  analytic_status_data, 
+  "current_former_smoker_agreement"
+)
+
+table2_agreement <- tbl_stack(
+  list(tbl_current, tbl_ever),
+  group_header = c("A. Current Smoker Agreement", "B. Ever Smoker (Current or Former) Agreement")
+) %>%
+  as_gt() %>%
+  gt::tab_options(row_group.font.weight = "bold")
 
 kappa_current_smoker <- compute_kappa(
   analytic_status_data, "survey_based_smoker", "EHR_based_smoker",
