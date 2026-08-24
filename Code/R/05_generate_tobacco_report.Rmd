@@ -1,184 +1,227 @@
 ---
-title: "Tobacco Validation Report"
-author: "Xuxiang Wang", "A. Jerrod Anzalone"
-date: "2025-11-27"
-output: html_document
+title: "Tobacco Phenotype Validation — Results"
+author: "Xuxiang Wang, A. Jerrod Anzalone"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
-# This chunk runs automatically but is hidden in the final report.
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
-library(tidyverse)
-library(gtsummary)
-library(ggplot2)
-# Load all the pre-computed results from the analysis script
-load("../validation_results.RData")
-```
+library(readr)
+library(gt)
+library(knitr)
 
-### Part 1: Smoking Status Agreement and Performance
-
-**Descriptive Statistics by Survey Smoking Status (Table 1)**
-
-```{r}
-descriptive_status
-```
-
-**Agreement between EHR-derived phenotype and self-reported survey data (Table 2)**
-
-```{r}
-table2_agreement
-```
-
-**Number of participants with selected tobacco-related indicators in wide-format EHR data (Figure 3)**
-
-```{r}
-plot_participants
-```
-
-**Number of EHR records with selected tobacco-related indicators in long-format EHR data (Figure 4)**
-
-```{r}
-plot_records
-```
-
-
-**Cohen's Kappa for Smoking Status**
-
-```{r}
-kappa_table_status
-```
-
-**Performance Metrics for Smoking Status (Sensitivity, Specificity, etc.)**
-
-```{r}
-performance_table_status
-```
-
-### Part 2: Smoking Intensity Agreement and Performance
-
-**Descriptive Statistics by Survey Smoking Intensity**
-
-```{r}
-descriptive_intensity
-```
-
-**Weighted Kappa for Ordinal Smoking Intensity**
-
-```{r}
-kappa_intensity
-```
-
-**Full Confusion Matrix for Smoking Intensity**
-
-```{r}
-conf_matrix_intensity_full
-```
-
-**Per-Class, Macro, and Micro Performance for Smoking Intensity**
-
-```{r}
-performance_intensity_all
-```
-
-### Part 3: Cigarettes per Day (Continuous) Agreement
-
-**ICC and Agreement Rate for Cigarettes per Day**
-
-```{r}
-icc_tbl_cigs
-```
-
-**Error Metrics (Bias, MAE, RMSE, Correlation) for Cigarettes per Day**
-
-```{r}
-err_tbl_cigs
-```
-
-**Bland-Altman Plot for Cigarettes per Day**
-
-```{r}
-ba_plot_cigs
-```
-
-### Part 4: Smoking Years (Continuous) Agreement
-
-**ICC and Agreement Rate for Smoking Years**
-
-```{r}
-icc_tbl_years
-```
-
-**Error Metrics (Bias, MAE, RMSE, Correlation) for Smoking Years**
-
-```{r}
-err_tbl_years
-```
-
-**Bland-Altman Plot for Smoking Years**
-
-```{r}
-ba_plot_years
-```
-
-### Supplemental Tables: EHR Data Summaries
-
-```{r supplemental_tables, echo=FALSE}
-# This code is from the end of the original Full_Validation_Pipeline script
-varlist_long <- c(
-  "person_id", "concept_id", "current_smoker","former_smoker","non_smoker",
-  "is_current_flag", "is_former_flag", "is_non_flag", "current_12_month","former_12_month",
-  "cessation_counseling","medication_use","cessation_attempt",
-  "e_cigarette_user","cigar_user","hookah_user","smokeless_user","other_type_user","cigaretee_user",
-  "packs_per_day","cigarettes_per_day","intensity_daily","duration_years"
-)
-
-EHR_summary_list_long <- list()
-for (v in varlist_long) {
-  if (v %in% c("intensity_daily")) {
-    df_sub <- long_tobacco_EHR_data %>% filter(!is.na(.data[[v]]))
-  } else {
-    df_sub <- long_tobacco_EHR_data %>% filter(!is.na(.data[[v]]) & .data[[v]] != 0)
+# Locate Results/ (knit dir differs from where results were written).
+find_results <- function() {
+  cands <- c("AoU-OMOP-Tobacco-Phenotyping-main/Results",
+             "Results", "../Results", "../../Results",
+             "../../AoU-OMOP-Tobacco-Phenotyping-main/Results")
+  hit <- cands[dir.exists(cands)]
+  if (length(hit) == 0) {
+    stop("Results/ folder not found. Set RESULTS_DIR manually in the setup chunk.")
   }
-  EHR_summary_list_long[[v]] <- df_sub %>%
-    summarise(variable = v, n_records = n(), n_persons = n_distinct(person_id))
+  normalizePath(hit[1])
 }
-sup_table_1 <- bind_rows(EHR_summary_list_long)
+RESULTS_DIR <- find_results()
 
-varlist_wide <- c(
-  "ever_smoker","non_flag",
-  "cessation_counseling","medication_use","cessation_attempt",
-  "latest_is_current_flag","latest_is_former_flag","latest_is_non_flag",
-  "latest_current_12_month","latest_former_12_month",
-  "latest_cessation_counseling","latest_medication_use","latest_cessation_attempt"
-)
+tbl_path <- function(name) file.path(RESULTS_DIR, "tables",  paste0(name, ".csv"))
+fig_path <- function(name) file.path(RESULTS_DIR, "figures", paste0(name, ".png"))
 
-EHR_summary_list_wide <- list()
-for (v in varlist_wide) {
-    df_sub <- wide_tobacco_EHR_data %>% filter(!is.na(.data[[v]]) & .data[[v]] != 0)
-    EHR_summary_list_wide[[v]] <- df_sub %>%
-    summarise(variable = v, n_persons = n_distinct(person_id))
+# Read a result CSV and render with gt; missing files degrade gracefully.
+show_tbl <- function(name, note = NULL) {
+  p <- tbl_path(name)
+  if (!file.exists(p)) {
+    return(htmltools::HTML(sprintf("<em>Not available: %s</em>", basename(p))))
+  }
+  df <- readr::read_csv(p, show_col_types = FALSE)
+  g <- gt::gt(df) |>
+    gt::opt_row_striping() |>
+    gt::tab_options(table.font.size = gt::px(13),
+                    data_row.padding = gt::px(4),
+                    table.width = gt::pct(100))
+  if (!is.null(note)) g <- gt::tab_source_note(g, gt::md(note))
+  g
 }
-sup_table_2 <- bind_rows(EHR_summary_list_wide)
+
+# Show a figure PNG if present.
+show_fig <- function(name) {
+  p <- fig_path(name)
+  if (!file.exists(p)) {
+    return(htmltools::HTML(sprintf("<em>Figure not available: %s</em>", basename(p))))
+  }
+  knitr::include_graphics(p)
+}
 ```
 
-**Supplemental Table 1 (Summary of Long EHR Data)**
+This report renders directly from the CSV tables and PNG figures written to
+`Results/` by the analysis step, so every number here is reproducible from that
+folder.
+
+# Cohort
+
+## Figure 2 — Cohort selection flow
 
 ```{r}
-sup_table_1
+show_fig("figure2_cohort_flow")
 ```
-
-**Supplemental Table 2 (Summary of Wide EHR Data)**
 
 ```{r}
-sup_table_2
+show_tbl("cohort_flow_counts")
 ```
 
-```{r, include=FALSE}
-rm(descriptive_status, kappa_table_status, performance_table_status,
-   descriptive_intensity, kappa_intensity, performance_intensity_all,
-   icc_tbl_cigs, err_tbl_cigs, ba_plot_cigs,
-   icc_tbl_years, err_tbl_years, ba_plot_years,
-   sup_table_1, sup_table_2,
-   EHR_summary_list_long, EHR_summary_list_wide, df_sub
-)
+# Part 1 — Smoking status
+
+## Table 1 — Descriptive statistics by survey smoking status
+
+```{r}
+show_tbl("descriptive_status")
 ```
+
+## Table 2 — Agreement between EHR phenotype and survey
+
+```{r}
+show_tbl("table2_agreement")
+```
+
+## Cohen's kappa — smoking status
+
+```{r}
+show_tbl("kappa_status")
+```
+
+## Performance — smoking status (sensitivity / specificity / PPV / NPV)
+
+```{r}
+show_tbl("performance_status")
+```
+
+## Figure 3 — Participants by tobacco indicator (patient level)
+
+```{r}
+show_fig("participants_by_indicator")
+```
+
+## Figure 4 — Records by tobacco indicator (event level)
+
+```{r}
+show_fig("records_by_indicator")
+```
+
+# Part 2 — Smoking intensity
+
+## Descriptive statistics by survey intensity
+
+```{r}
+show_tbl("descriptive_intensity")
+```
+
+## Weighted kappa — intensity
+
+```{r}
+show_tbl("kappa_intensity")
+```
+
+## Confusion matrix — intensity
+
+```{r}
+show_tbl("confusion_matrix_intensity")
+```
+
+## Performance — intensity
+
+```{r}
+show_tbl("performance_intensity")
+```
+
+# Part 3 — Cigarettes per day
+
+## Intraclass correlation
+
+```{r}
+show_tbl("icc_cigarettes_daily")
+```
+
+## Error metrics
+
+```{r}
+show_tbl("error_cigarettes_daily")
+```
+
+## Figure 5A — Bland–Altman, cigarettes per day
+
+```{r}
+show_fig("bland_altman_cigarettes")
+```
+
+# Part 4 — Smoking duration (years)
+
+## Intraclass correlation
+
+```{r}
+show_tbl("icc_smoking_years")
+```
+
+## Error metrics
+
+```{r}
+show_tbl("error_smoking_years")
+```
+
+## Figure 5B — Bland–Altman, smoking years
+
+```{r}
+show_fig("bland_altman_smoking_years")
+```
+
+# Sensitivity analyses
+
+## Supplemental Table 3A — Performance under varying recency (lookback) windows
+
+```{r}
+show_tbl("sensitivity_3A_recency_windows",
+         note = "Recency lookback in {3, 6, 12, 24} months; pairing fixed at &plusmn;365 days.")
+```
+
+## Supplemental Table 3B — Performance stratified by survey&ndash;event time lag
+
+```{r}
+show_tbl("sensitivity_3B_timelag_strata",
+         note = "Primary phenotype (12-month recency); pairing to &plusmn;730 days, stratified by absolute lag.")
+```
+
+# Supplemental — EHR summaries
+
+## Table 1A — Patient-level variable counts
+
+```{r}
+show_tbl("supplemental_1A_patient_variables")
+```
+
+## Table 1B — Patient-level concept frequencies
+
+```{r}
+show_tbl("supplemental_1B_patient_concepts")
+```
+
+## Table 2A — Event-level variable counts
+
+```{r}
+show_tbl("supplemental_2A_event_variables")
+```
+
+## Table 2B — Event-level concept frequencies
+
+```{r}
+show_tbl("supplemental_2B_event_concepts")
+```
+
+```{r}
+show_tbl("supplemental_selection_bias_comparison")
+```
+

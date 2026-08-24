@@ -1,14 +1,47 @@
 # ==============================================================================
-# 02_process_and_combine.R
+# 03_compare.R
 #
 # Author: Xuxiang Wang, A. Jerrod Anzalone
-# Date: 2025-11-29
+# Date: 2026-07-02
 #
 # Description:
-# This script processes the raw survey data (Basics and Lifestyle), combines it
-# with demographic data, and applies a series of inclusion/exclusion filters to
-# generate the final analytic cohort, `combined_df`.
+# Processes the surveys, builds the analytic cohort (with per-step flow counts),
+# pairs each member to the nearest EHR event within +/-365 days, and writes the
+# status / cigarettes-daily / smoking-years matched sets.
 # ==============================================================================
+
+
+# -- 0. Read inputs from the bucket -------------------------------------------
+# ------------------------------------------------------------------------------
+manifest <- read_manifest()
+
+long_tobacco_EHR_data <- read_bq_export(
+  manifest_path(manifest, "long_tobacco_ehr"),
+  col_types = cols(
+    person_id           = col_double(),
+    concept_id          = col_double(),
+    value_as_concept_id = col_double(),
+    value_as_number     = col_double(),
+    event_date          = col_date(),
+    survey_date         = col_date()
+  )
+)
+visit_cohort   <- read_bq_export(manifest_path(manifest, "visit_cohort"),
+                                 col_types = cols(person_id = col_double()))
+basics_data    <- read_bq_export(manifest_path(manifest, "basics"),
+                                 col_types = cols(person_id = col_double(),
+                                                  survey_datetime = col_character()))
+lifestyle_data <- read_bq_export(manifest_path(manifest, "lifestyle"),
+                                 col_types = cols(person_id = col_double(),
+                                                  survey_datetime = col_character()))
+EHR_linked_data <- read_bq_export(
+  manifest_path(manifest, "ehr_linked"),
+  col_types = cols(person_id = col_double(), date_of_birth = col_character())
+) %>%
+  mutate(date_of_birth = as_datetime(date_of_birth))
+
+# Persons with any tobacco event (drives has_tobacco_related_data below).
+tobacco_person_ids <- unique(long_tobacco_EHR_data$person_id)
 
 
 # -- 1. Process the 'Basics' survey data --
@@ -58,7 +91,7 @@ basics_data <- basics_data %>%
 
 # Grab the latest survey data per person
 basics_data <- basics_data %>%
-  arrange(person_id, survey_datetime) %>%
+  arrange(person_id, desc(survey_datetime)) %>%
   group_by(person_id) %>%
   slice(1) %>%
   ungroup() %>%
@@ -384,18 +417,184 @@ combined_df <- basics_data %>%
          
          has_EHR_data = if_else(person_id %in% EHR_linked_data$person_id, 1, 0),
          has_visit_data = if_else(person_id %in% visit_cohort$person_id, 1, 0),
-         has_tobacco_related_data = if_else(person_id %in% wide_tobacco_EHR_data$person_id, 1, 0)
+         has_tobacco_related_data = if_else(person_id %in% tobacco_person_ids, 1, 0)
   )
 
 # Apply cohort inclusion/exclusion criteria sequentially
-combined_df <- combined_df %>%
-  filter(has_EHR_data == 1) %>%
-  filter(!is.na(age) & age >= 18 & age <= 99) %>%
-  filter(smoking_status != "Unknown") %>%
-  filter(sex_at_birth %in% c("Female", "Male")) %>%
-  filter(has_visit_data == 1) %>%
-  filter(has_tobacco_related_data == 1)
+# Sequential inclusion/exclusion, recording person counts at each step so file 4
+# can draw the Figure 2 flow diagram. Age bounds come from PARAMS.
+count_step <- function(df, label) tibble(step = label, n = n_distinct(df$person_id))
 
-# -- 4. Clean up intermediate objects from memory --
+cohort_flow <- count_step(combined_df, "Survey + demographics available")
+combined_df <- combined_df %>% filter(has_EHR_data == 1)
+cohort_flow <- bind_rows(cohort_flow, count_step(combined_df, "Has EHR data"))
+combined_df <- combined_df %>% filter(!is.na(age) & age >= PARAMS$age_min & age <= PARAMS$age_max)
+cohort_flow <- bind_rows(cohort_flow, count_step(combined_df, "Age within eligible range"))
+combined_df <- combined_df %>% filter(smoking_status != "Unknown")
+cohort_flow <- bind_rows(cohort_flow, count_step(combined_df, "Known survey smoking status"))
+combined_df <- combined_df %>% filter(sex_at_birth %in% c("Female", "Male"))
+cohort_flow <- bind_rows(cohort_flow, count_step(combined_df, "Female/Male sex at birth"))
+combined_df <- combined_df %>% filter(has_visit_data == 1)
+cohort_flow <- bind_rows(cohort_flow, count_step(combined_df, "Eligible visit within 1 year"))
+
+eligible_base <- combined_df
+
+combined_df <- combined_df %>% filter(has_tobacco_related_data == 1)
+cohort_flow <- bind_rows(cohort_flow, count_step(combined_df, "Has tobacco-related EHR record"))
+
+# -- Snapshot the person-level cohort before the merge overwrites combined_df --
 # ------------------------------------------------------------------------------
-rm(basics_question_mapping, patterns, tobacco_use_cols)
+cohort <- combined_df
+
+
+# -- 3. Create the final matched datasets for analysis --
+# ------------------------------------------------------------------------------
+# This section merges the clean cohort with the enriched EHR data and finds the
+# closest EHR record within a 1-year window of each person's survey date.
+
+# Convert to data.table for faster merging
+dt_survey <- as.data.table(combined_df)
+# long now carries its own survey_date (file 1 LEFT JOIN); drop it so the merge
+# uses the cohort's survey_date.
+dt_ehr <- as.data.table(long_tobacco_EHR_data %>% select(-survey_date))
+
+
+# Merge by person_id
+merged <- dt_ehr[dt_survey, on = .(person_id), allow.cartesian = TRUE]
+
+# Keep only EHR events within ±365 days of survey_date
+filtered <- merged[abs(event_date - survey_date) <= 365]
+
+# Overwrite combined_df with this new, event-level matched data frame
+combined_df <- as.data.frame(filtered)
+
+
+# Define variable lists for each comparison
+varlist_demographics <- c(
+  "age", "age_group", "race_and_ethnicity", "education_level", "marital_status",
+  "health_insurance", "employment_status", "annual_household_income", "current_home_own"
+)
+
+varlist_smoking_status <- c(
+  "person_id", "event_date", "survey_date", "current_smoker", "former_smoker",
+  "non_smoker", "smoking_status"
+)
+
+varlist_intensity <- c(
+  "person_id", "event_date", "survey_date", "intensity_daily",
+  "intensity_current_daily", "intensity_avg_daily"
+)
+
+varlist_smoking_years <- c(
+  "person_id", "event_date", "survey_date", "duration_years", "smoking_years"
+)
+
+varlist_cigarettes_daily <- c(
+  "person_id", "event_date", "survey_date", "cigarettes_per_day",
+  "smoking_current_cigarettes_per_day", "smoking_avg_daily_cigarettes"
+)
+
+# Create `compared_smoking_status_df`
+compared_smoking_status_df <- combined_df %>%
+  select(all_of(c(varlist_smoking_status, varlist_demographics))) %>%
+  filter(
+    !if_all(c(current_smoker, former_smoker, non_smoker), is.na) |
+      !is.na(smoking_status)
+  ) %>%
+  mutate(date_diff = abs(as.numeric(event_date - survey_date))) %>%
+  arrange(person_id, event_date) %>%
+  group_by(person_id, survey_date) %>%
+  slice_min(order_by = date_diff, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-date_diff)
+
+# Create `compared_intensity_df`
+compared_intensity_df <- combined_df %>%
+  select(all_of(c(varlist_intensity, varlist_demographics))) %>%
+  filter(
+    !is.na(intensity_daily),
+    !is.na(intensity_current_daily) | !is.na(intensity_avg_daily)
+  )%>%
+  mutate(date_diff = abs(as.numeric(event_date - survey_date))) %>%
+  arrange(person_id, event_date) %>%
+  group_by(person_id, survey_date) %>%
+  slice_min(order_by = date_diff, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-(date_diff))
+
+# Create `compared_smoking_years_df`
+compared_smoking_years_df <- combined_df %>%
+  select(all_of(c(varlist_smoking_years, varlist_demographics))) %>%
+  filter(
+    !is.na(duration_years),
+    !is.na(smoking_years)
+  )%>%
+  mutate(date_diff = abs(as.numeric(event_date - survey_date))) %>%
+  arrange(person_id, event_date) %>%
+  group_by(person_id, survey_date) %>%
+  slice_min(order_by = date_diff, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-(date_diff))
+
+# Create `compared_cigarettes_daily_df`
+compared_cigarettes_daily_df <- combined_df %>%
+  select(all_of(c(varlist_cigarettes_daily, varlist_demographics))) %>%
+  filter(
+    !is.na(cigarettes_per_day),
+    !is.na(smoking_current_cigarettes_per_day) | !is.na(smoking_avg_daily_cigarettes)
+  )%>%
+  mutate(date_diff = abs(as.numeric(event_date - survey_date))) %>%
+  arrange(person_id, event_date) %>%
+  group_by(person_id, survey_date) %>%
+  slice_min(order_by = date_diff, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-(date_diff))
+
+# -- Selection-bias comparison groups (person level) --------------------------
+# Within the eligibility base, split into three mutually exclusive groups so
+# reviewers can assess non-random exclusion:
+#   1. No tobacco-related records at all
+#   2. Tobacco records present, but none within 1 year of the survey date
+#   3. Final analytic cohort (a tobacco event within 1 year of the survey date)
+final_cohort_ids <- unique(compared_smoking_status_df$person_id)
+bias_comparison_cohort <- eligible_base %>%
+  mutate(
+    cohort_group = case_when(
+      person_id %in% final_cohort_ids ~ "Final analytic cohort",
+      has_tobacco_related_data == 1   ~ "Tobacco records, none within 1 year",
+      TRUE                            ~ "No tobacco-related records"
+    ),
+    cohort_group = factor(cohort_group, levels = c(
+      "No tobacco-related records",
+      "Tobacco records, none within 1 year",
+      "Final analytic cohort"
+    ))
+  ) %>%
+  select(person_id, cohort_group, all_of(varlist_demographics), smoking_status)
+
+# -- Export cohort and the three matched sets, append the manifest ------------
+# ------------------------------------------------------------------------------
+# Final analytic-sample count (persons with an EHR event within 365 days).
+cohort_flow <- bind_rows(
+  cohort_flow,
+  count_step(compared_smoking_status_df, "EHR event within 365 days (final sample)")
+)
+
+compared_sets <- list(
+  cohort                    = cohort,
+  cohort_flow               = cohort_flow,
+  bias_comparison_cohort    = bias_comparison_cohort,
+  compared_smoking_status   = compared_smoking_status_df,
+  compared_intensity        = compared_intensity_df,
+  compared_cigarettes_daily = compared_cigarettes_daily_df,
+  compared_smoking_years    = compared_smoking_years_df
+)
+new_rows <- imap_dfr(compared_sets, ~ stage_to_bucket(.x, .y))
+manifest <- append_manifest(manifest, new_rows)
+save_manifest(manifest)
+
+
+# -- Clean up -----------------------------------------------------------------
+# ------------------------------------------------------------------------------
+rm(long_tobacco_EHR_data, visit_cohort, basics_data, lifestyle_data,
+   EHR_linked_data, tobacco_person_ids, compared_sets, new_rows)

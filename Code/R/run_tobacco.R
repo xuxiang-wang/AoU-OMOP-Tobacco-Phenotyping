@@ -2,50 +2,46 @@
 # run_tobacco.R
 #
 # Author: Xuxiang Wang, A. Jerrod Anzalone
-# Date: 2025-09-26
+# Date: 2026-07-02
 #
 # Description:
-# This is the main control script for the Tobacco Phenotyping Validation pipeline.
-# Running this script will execute the entire workflow from data loading to
-# final output generation.
+# One-shot runner: sources 00-04 in order (each resumable via the bucket
+# manifest), then renders the HTML report. Assumes the working directory is
+# /home/rstudio; edit CODE_DIR and the paths in 00_setup.R if it differs.
+#
+# install.packages(c("tidyverse","gtsummary","rmarkdown","broom","bigrquery",
+#                    "lubridate","data.table","irr","ggsci","scales","gt"))
 # ==============================================================================
 
-# Step 0: Install Install once if needed before running
-# Restart Rstudio maybe needed before install these package
-# install.packages(c("tidyverse","gtsummary","rmarkdown","broom","bigrquery",
-#                    "dplyr","lubridate","data.table","purrr","irr","ggplot2",
-#                    "ggsci","scales"))
+CODE_DIR    <- "AoU-OMOP-Tobacco-Phenotyping-main/Code/R"
+REPORT_RMD  <- file.path(CODE_DIR, "05_generate_tobacco_report.Rmd")
+REPORT_HTML <- "AoU-OMOP-Tobacco-Phenotyping-main/Results/tobacco_validation_report.html"
 
+# -- Step 1: environment, libraries, helpers, parameters ----------------------
+source(file.path(CODE_DIR, "00_setup.R"))
+log_step("Step 1/6  setup complete.")
 
-# Step 1: Setup environment, load all libraries and helper functions
-source("Code/R/00_setup.R")
-print("Step 1: Environment setup complete.")
+# -- Step 2: pull all raw data to the bucket, write the run manifest ----------
+source(file.path(CODE_DIR, "01_load_data.R"))
+log_step("Step 2/6  data pull complete.")
 
-# Step 2: Load all raw data from BigQuery and local CSVs
-source("Code/R/tobacco_phenotype/01_load_data.R")
-print("Step 2: Data loading complete.")
+# -- Step 3: EHR classification -> product long/wide + concept dictionary ------
+source(file.path(CODE_DIR, "02_classify_ehr.R"))   # <- file-2 content (EHR classification)
+log_step("Step 3/6  EHR classification complete.")
 
-# Step 3: Process raw data and generate the final analytic cohort
-source("Code/R/tobacco_phenotype/02_process_and_combine.R")
-print("Step 3: Data processing and cohort generation complete.")
+# -- Step 4: survey processing, analytic cohort, matched sets -----------------
+source(file.path(CODE_DIR, "03_compare.R"))  # <- file-3 content (comparison)
+log_step("Step 4/6  cohort and matched sets built.")
 
-# Step 4: Create specialized datasets required for validation analyses
-source("Code/R/tobacco_phenotype/03_create_analysis_datasets.R")
-print("Step 4: Analysis-specific datasets created.")
+# -- Step 5: all analyses + sensitivity -> Results/ ---------------------------
+source(file.path(CODE_DIR, "04_validation_analysis.R"))
+log_step("Step 5/6  analyses complete; results written to Results/.")
 
-# Step 5: Execute the statistical validation analyses and save results to a file
-source("Code/R/tobacco_phenotype/04_validation_analysis.R")
-print("Step 5: Statistical validation analyses complete. Results saved to .RData file.")
+# -- Step 6: render the HTML report from Results/ -----------------------------
+# knit_root_dir keeps the report at /home/rstudio so Results/ resolves.
+rmarkdown::render(REPORT_RMD,
+                  output_file  = normalizePath(REPORT_HTML, mustWork = FALSE),
+                  knit_root_dir = getwd())
+log_step("Step 6/6  report rendered -> ", REPORT_HTML)
 
-# Step 6: Render the R Markdown report into a final HTML file
-rmarkdown::render(
-  "R/tobacco_phenotype/05_generate_tobacco_report.Rmd",
-  output_file = "../tobacco_validation_report.html"
-)
-print("Step 6: Final HTML report generated successfully.")
-
-
-print("======================================================================")
-print("Tobacco validation pipeline finished successfully.")
-print("A report named 'tobacco_validation_report.html' has been created.")
-print("======================================================================")
+log_step("Pipeline finished.")
